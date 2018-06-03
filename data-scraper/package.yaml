@@ -6,9 +6,6 @@ author:              "Boris Nikulin"
 maintainer:          "NikulinBE@gmail.com"
 copyright:           "2018 Boris Nikulin"
 
-extra-source-files:
-    - ChangeLog.md
-
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
 # category:            Web
@@ -20,11 +17,15 @@ description:         Please see the README on GitHub at <https://github.com/Bori
 
 dependencies:
     - base >= 4.7 && < 5
-    - tagsoup < 1
+    - text >= 1.2 && < 2
+    - scalpel-core < 1
+    - time >= 1 && < 2
     - sqlite-simple >= 0.4 && < 1
 
 library:
   source-dirs: src
+  ghc-options:
+      - -fno-warn-tabs
 
 executables:
   csgo-analysis-scraper-exe:
@@ -34,5 +35,6 @@ executables:
         - -threaded
         - -rtsopts
         - -with-rtsopts=-N
+        - -fno-warn-tabs
     dependencies:
         - csgo-analysis

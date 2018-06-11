@@ -2,7 +2,7 @@
 {-# language TypeApplications #-}
 {-# language RecordWildCards #-}
 
-module Scraper where
+module CsgoMatchParser where
 
 import Data.Int
 import Data.Char
@@ -16,41 +16,12 @@ import qualified Data.Text.IO as T
 import Data.Time
 import Text.HTML.Scalpel.Core
 
+import Data.Csgo
+
 import Debug.Trace
 
 filePath :: FilePath
 filePath = "/data/Documents/Misc/Steam Community   Counter-Strike  Global Offensive   Personal Game Data.html"
-
-type MatchId = T.Text
-
-data CSGOMatch = CSGOMatch
-	{ matchId :: MatchId -- ^ based on the replay url such as ../123_456.dem.bz2 where 123456 would be the id
-	, matchMap :: CSGOMap
-	, startTime :: UTCTime
-	, waitTime :: NominalDiffTime
-	, matchDuration :: NominalDiffTime
-	, scoreTeamA :: Int
-	, scoreTeamB :: Int
-	, teamA :: [PlayerStats] -- ^ team of 5
-	, teamB :: [PlayerStats] -- ^ team of 5
-	} deriving (Show)
-
-data CSGOMap = Dust2 | Mirage | Cache -- the other maps dont exist ;)
-	deriving (Show, Enum, Bounded)
-
-type SteamId64 = Int64
-
-data PlayerStats = PlayerStats
-	{ userId :: SteamId64
-	, ping :: Int
-	, kills :: Int
-	, assists :: Int
-	, deaths :: Int
-	, mvps :: Maybe Int -- ^ mvp stars
-	, hsp :: Int -- ^ headshot percentage
-	, score :: Int
-	-- ban data from plugin but ill add that later?
-	} deriving (Show)
 
 test = flip (scrapeStringLike @T.Text) scraper <$> T.readFile filePath
 
@@ -68,7 +39,7 @@ scraper =
 		{-then return Nothing-}
 		{-else Just <$> scrapeMatch-}
 
-scrapeMatch :: Scraper T.Text CSGOMatch
+scrapeMatch :: Scraper T.Text CsgoMatch
 scrapeMatch = do
 	(scoreTeamA, scoreTeamB, playerStats)
 		<- chroot ("table" @: [hasClass "csgo_scoreboard_inner_right"] // "tbody") scrapeScoreAndPlayers
@@ -77,19 +48,19 @@ scrapeMatch = do
 	gotvLink <- attr "href" "a"
 
 	let
-		parseMatchId :: T.Text -> MatchId
+		{-parseMatchId :: T.Text -> MatchId-}
 		-- the two numbers together are too large for an Int64
 		-- store as a tuple of 2 numbers? as text?
 		-- TODO
-		parseMatchId = {-read @Int64 . T.unpack . T.filter isDigit .-} fst . T.breakOn "." . snd . T.breakOnEnd "/"
+		{-parseMatchId = {-read @Int64 . T.unpack . T.filter isDigit .-} fst . T.breakOn "." . snd . T.breakOnEnd "/"-}
 
-		parseMap :: T.Text -> CSGOMap
+		parseMap :: T.Text -> CsgoMap
 		parseMap s = fromJust . asum $
 			boolToMaybeMap
 			<$> ZipList [minBound .. maxBound]
 			<*> (T.isSuffixOf <$> maps <*> pure (T.stripEnd s))
 			where
-				-- | must be in the same order as the CSGOMap enum
+				-- | must be in the same order as the CsgoMap enum
 				maps :: ZipList T.Text
 				maps = ZipList ["Dust II", "Mirage", "Cache"]
 				boolToMaybeMap :: a -> Bool -> Maybe a
@@ -113,7 +84,7 @@ scrapeMatch = do
 		(teamA, rest) = splitAt 5 playerStats
 		teamB = take 5 rest
 
-	return CSGOMatch{..}
+	return CsgoMatch{..}
 
 scrapeScoreAndPlayers :: Scraper T.Text (Int, Int, [PlayerStats])
 scrapeScoreAndPlayers = liftA2 (uncurry (,,))
@@ -127,7 +98,7 @@ scrapeScoreAndPlayers = liftA2 (uncurry (,,))
 
 scrapePlayers :: Scraper T.Text PlayerStats
 scrapePlayers = do
-	userId <- (read @Int64 . T.unpack) <$> attr "data-steamid64" anySelector
+	userId <- (SteamId64 . read @Int64 . T.unpack) <$> attr "data-steamid64" anySelector
 	(thePing:theKills:theAssists:theDeaths:theMvps:theHsp:theScore:_) <-
 		texts ("td" @: [notP $ hasClass "inner_name"])
 

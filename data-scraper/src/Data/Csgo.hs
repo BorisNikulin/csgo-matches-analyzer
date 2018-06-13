@@ -6,7 +6,7 @@ module Data.Csgo
 	(
 	-- * Match types
 	  CsgoMatch(..)
-	, MatchId
+	, MatchId(..)
 	, CsgoMap(..)
 	-- * Player types
 	, PlayerStats(..)
@@ -19,8 +19,7 @@ import Data.Int
 
 import qualified Data.Text as T
 import Data.Time
-
-import Debug.Trace
+import Database.SQLite.Simple.ToField
 
 -- TODO
 data MatchId = MatchId (Int64, Int64)
@@ -28,7 +27,7 @@ data MatchId = MatchId (Int64, Int64)
 
 -- | Record type for a single csgo competitive match
 data CsgoMatch = CsgoMatch
-	{ matchId :: MatchId -- ^ based on the replay url such as ../123_456.dem.bz2 where 123456 would be the id
+	{ matchId :: MatchId -- ^ based on the replay url such as ../123_456.dem.bz2 where (123, 456) would be the id
 	, matchMap :: CsgoMap
 	, startTime :: UTCTime
 	, waitTime :: NominalDiffTime
@@ -43,8 +42,16 @@ data CsgoMatch = CsgoMatch
 data CsgoMap = Dust2 | Mirage | Cache -- the other maps dont exist ;)
 	deriving (Show, Enum, Bounded)
 
+instance ToField CsgoMap where
+	toField = toField . show
+	{-# INLINE toField #-}
+
 newtype SteamId64 = SteamId64 { getSteamId64 :: Int64 }
 	deriving(Show, Eq, Enum, Bounded)
+
+instance ToField SteamId64 where
+	toField = toField . getSteamId64
+	{-# INLINE toField #-}
 
 data PlayerStats = PlayerStats
 	{ userId :: SteamId64

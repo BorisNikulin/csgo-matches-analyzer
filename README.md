@@ -2,7 +2,7 @@
 
 To analyze your matches:
 
-* Go to your csgo competative match history and save the html webpage\*
+* Go to your csgo competitive match history and save the html webpage\*
 * Run the scraper on the html (wip)
 * Run the R analysis on the resulting sqlite file (very wip)
 

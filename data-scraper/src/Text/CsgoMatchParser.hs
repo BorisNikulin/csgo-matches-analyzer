@@ -2,7 +2,7 @@
 {-# language TypeApplications #-}
 {-# language RecordWildCards #-}
 
-module CsgoMatchParser where
+module Text.CsgoMatchParser where
 
 import Data.Int
 import Data.Char
@@ -108,7 +108,7 @@ scrapePlayers = do
 		parseMvp s
 			| s == "★"
 				= Just 1
-			| otherwise =  readMaybe @Int . T.unpack $ stripNonNumeric s
+			| otherwise = readMaybe @Int . T.unpack $ stripNonNumeric s
 
 		ping = parseInt thePing
 		kills = parseInt theKills

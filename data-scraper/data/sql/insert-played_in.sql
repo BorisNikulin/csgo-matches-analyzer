@@ -21,4 +21,4 @@ VALUES (
 	:deaths,
 	:mvps,
 	:hsp,
-	:score )
+	:score );

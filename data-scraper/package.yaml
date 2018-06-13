@@ -23,6 +23,7 @@ dependencies:
     - scalpel-core < 1
     - time >= 1 && < 2
     - sqlite-simple >= 0.4 && < 1
+    - directory >= 1.3 && < 2
 
 library:
   source-dirs: src

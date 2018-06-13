@@ -4,31 +4,43 @@
 
 module Sql.MatchInserter where
 
-import Data.Fixed
+import Data.Foldable
 
 import qualified Data.Text.IO as T
 import Data.Time
 import Database.SQLite.Simple
+import System.Directory
 
 import Data.Csgo
+
+import Debug.Trace
+
+createDb :: Connection -> IO ()
+createDb con = do
+	let rootDir = "data/sql/create-db/"
+	filePaths <- (fmap (rootDir ++)) <$> listDirectory rootDir
+	for_ filePaths $ (execute_ con =<<) . loadQuery
 
 insertMatch :: Connection -> CsgoMatch -> IO ()
 insertMatch con CsgoMatch{..} = do
 	insertMatchQ <- loadQuery "data/sql/insert-match.sql"
 
 	let
-		(MatchId (mid1, mid2)) = matchId
+		MatchId (mid1, mid2) = traceShowId matchId
 
 	execute con insertMatchQ
 		( mid1
 		, mid2
-		, show matchMap
+		, matchMap
 		, startTime
 		, realToFrac @NominalDiffTime @Double waitTime
 		, realToFrac @NominalDiffTime @Double matchDuration
 		, scoreTeamA
 		, scoreTeamB
 		)
+
+	for_ teamA $ insertPlayer con matchId False
+	for_ teamB $ insertPlayer con matchId True
 
 insertPlayer
 	:: Connection

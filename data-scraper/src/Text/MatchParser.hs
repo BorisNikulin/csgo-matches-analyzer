@@ -2,7 +2,7 @@
 {-# language TypeApplications #-}
 {-# language RecordWildCards #-}
 
-module Text.CsgoMatchParser where
+module Text.MatchParser where
 
 import Data.Int
 import Data.Char

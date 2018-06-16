@@ -1,7 +1,8 @@
 INSERT INTO played_in (
-	mid1,
-	mid2,
 	pid,
+	map,
+	start_time,
+	duration,
 	team,
 	ping,
 	kills,
@@ -11,9 +12,10 @@ INSERT INTO played_in (
 	hsp,
 	score )
 VALUES (
-	:mid1,
-	:mid2,
 	:pid,
+	:map,
+	:start_time,
+	:duration,
 	:team,
 	:ping,
 	:kills,

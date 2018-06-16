@@ -2,12 +2,14 @@
 {-# language TypeApplications #-}
 {-# language RecordWildCards #-}
 
-module Text.MatchParser where
+module Text.MatchParser
+	( scrapeFile
+	, csgoScraper
+	) where
 
 import Data.Int
 import Data.Char
 import Data.Maybe
-import Data.Foldable
 import Text.Read
 import Control.Applicative
 
@@ -18,26 +20,20 @@ import Text.HTML.Scalpel.Core
 
 import Data.Csgo
 
-import Debug.Trace
-
 filePath :: FilePath
 filePath = "/data/Documents/Misc/Steam Community   Counter-Strike  Global Offensive   Personal Game Data.html"
 
-test = flip (scrapeStringLike @T.Text) scraper <$> T.readFile filePath
+-- | Scrapes csgo competitive matches from an html file provided by steam.
+scrapeFile
+	:: FilePath -- ^ Filepath to html containing csgo competitive match data
+	-> IO [CsgoMatch]
+scrapeFile = fmap (fromMaybe [] . flip scrapeStringLike csgoScraper) . T.readFile
 
-scraper =
-	chroot (("div" @: ["id" @= "personaldata_elements_container"]) // "table" // "tbody")
-	-- . chroot "tbody"
-	$ chroots "tr" scrapeMatch
-
-{-scrapeFirstMatches :: Scraper T.Text ((Int, Int))-}
-{-scrapeFirstMatches = do-}
-	{-pos <- position-}
-	{-a <- scrapeMatch-}
-	{-return (pos, a)-}
-	{-if pos == 0 -- header-}
-		{-then return Nothing-}
-		{-else Just <$> scrapeMatch-}
+-- | Scraper type from scalpel for csgo competitive matches.
+csgoScraper :: Scraper T.Text [CsgoMatch]
+csgoScraper = chroots (root // "tr") scrapeMatch
+	where
+		root = ("div" @: ["id" @= "personaldata_elements_container"]) // "table"
 
 scrapeMatch :: Scraper T.Text CsgoMatch
 scrapeMatch = do
@@ -45,29 +41,8 @@ scrapeMatch = do
 		<- chroot ("table" @: [hasClass "csgo_scoreboard_inner_right"] // "tbody") scrapeScoreAndPlayers
 	(theMap:theStartTime:theWaitTime:theMatchDuration:_)
 		<- chroot ("table" @: [hasClass "csgo_scoreboard_inner_left"] // "tbody") (texts "tr")
-	gotvLink <- attr "href" "a"
 
 	let
-		{-parseMatchId :: T.Text -> MatchId-}
-		-- the two numbers together are too large for an Int64
-		-- store as a tuple of 2 numbers? as text?
-		-- TODO
-		{-parseMatchId = {-read @Int64 . T.unpack . T.filter isDigit .-} fst . T.breakOn "." . snd . T.breakOnEnd "/"-}
-
-		parseMap :: T.Text -> CsgoMap
-		parseMap s = fromJust . asum $
-			boolToMaybeMap
-			<$> ZipList [minBound .. maxBound]
-			<*> (T.isSuffixOf <$> maps <*> pure (T.stripEnd s))
-			where
-				-- | must be in the same order as the CsgoMap enum
-				maps :: ZipList T.Text
-				maps = ZipList ["Dust II", "Mirage", "Cache"]
-				boolToMaybeMap :: a -> Bool -> Maybe a
-				boolToMaybeMap map b
-					| b = Just map
-					| otherwise = Nothing
-
 		parseNominalDiffTime :: T.Text -> NominalDiffTime
 		parseNominalDiffTime s = (minutesToSeconds minutes) + (fromIntegral seconds)
 			where
@@ -75,9 +50,7 @@ scrapeMatch = do
 				minutesToSeconds :: (Num a, Integral a) => a -> NominalDiffTime
 				minutesToSeconds mins = fromIntegral $ mins * 60
 
-		matchId = parseMatchId gotvLink
-		matchMap = parseMap theMap -- TODO actually do it
-
+		matchMap = parseMap theMap
 		startTime = read @UTCTime $ T.unpack theStartTime
 		waitTime = parseNominalDiffTime theWaitTime
 		matchDuration = parseNominalDiffTime theMatchDuration
@@ -104,7 +77,10 @@ scrapePlayers = do
 
 	let
 		stripNonNumeric = T.dropAround (not . isDigit)
-		parseInt = read @Int . T.unpack . stripNonNumeric
+		parseNumWith :: (String -> a) -> T.Text -> a
+		parseNumWith f = f . T.unpack . stripNonNumeric
+		parseInt = parseNumWith (read @Int)
+		parseIntMaybe = parseNumWith (readMaybe @Int)
 		parseMvp s
 			| s == "★"
 				= Just 1
@@ -115,7 +91,7 @@ scrapePlayers = do
 		assists = parseInt theAssists
 		deaths = parseInt theDeaths
 		mvps = parseMvp theMvps -- always one being the odd one out
-		hsp = parseInt theHsp
+		hsp = parseIntMaybe theHsp
 		score = parseInt theScore
 
 	return PlayerStats{..}

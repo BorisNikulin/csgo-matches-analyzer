@@ -13,8 +13,6 @@ import System.Directory
 
 import Data.Csgo
 
-import Debug.Trace
-
 createDb :: Connection -> IO ()
 createDb con = do
 	let rootDir = "data/sql/create-db/"
@@ -25,13 +23,8 @@ insertMatch :: Connection -> CsgoMatch -> IO ()
 insertMatch con CsgoMatch{..} = do
 	insertMatchQ <- loadQuery "data/sql/insert-match.sql"
 
-	let
-		MatchId (mid1, mid2) = traceShowId matchId
-
 	execute con insertMatchQ
-		( mid1
-		, mid2
-		, matchMap
+		( matchMap
 		, startTime
 		, realToFrac @NominalDiffTime @Double waitTime
 		, realToFrac @NominalDiffTime @Double matchDuration
@@ -39,25 +32,30 @@ insertMatch con CsgoMatch{..} = do
 		, scoreTeamB
 		)
 
+	let matchId = (matchMap, startTime, matchDuration)
+
 	for_ teamA $ insertPlayer con matchId False
 	for_ teamB $ insertPlayer con matchId True
 
+type MatchId = (CsgoMap, UTCTime, NominalDiffTime)
+
 insertPlayer
 	:: Connection
-	-> MatchId
+	-> MatchId -- ^ The map and match timestamp
 	-> Bool -- ^ Team (False for A, True for B)
 	-> PlayerStats
 	-> IO ()
-insertPlayer con (MatchId (mid1, mid2)) team PlayerStats{..} = do
+insertPlayer con (matchMap, startTime, matchDuration) team PlayerStats{..} = do
 	insertPlayerQ <- loadQuery "data/sql/insert-player.sql"
 	insertPlayedInQ <- loadQuery "data/sql/insert-played_in.sql"
 
 	execute con insertPlayerQ (Only userId)
 
 	executeNamed con insertPlayedInQ
-		[ ":mid1" := mid1
-		, ":mid2" := mid2
-		, ":pid" := userId
+		[ ":pid" := userId
+		, ":map" := matchMap
+		, ":start_time" := startTime
+		, ":duration" := realToFrac @NominalDiffTime @Double matchDuration
 		, ":team" := fromEnum team
 		, ":ping" := ping
 		, ":kills" := kills

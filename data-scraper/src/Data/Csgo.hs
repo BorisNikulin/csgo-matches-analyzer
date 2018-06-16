@@ -6,29 +6,26 @@ module Data.Csgo
 	(
 	-- * Match types
 	  CsgoMatch(..)
-	, MatchId(..)
 	, CsgoMap(..)
 	-- * Player types
 	, PlayerStats(..)
 	, SteamId64(..)
 	-- * Parsing
-	, parseMatchId
+	, parseMap
 	) where
 
 import Data.Int
+import Data.Maybe
+import Data.Foldable
+import Control.Applicative
 
 import qualified Data.Text as T
 import Data.Time
 import Database.SQLite.Simple.ToField
 
--- TODO
-data MatchId = MatchId (Int64, Int64)
-	deriving (Show, Eq)
-
 -- | Record type for a single csgo competitive match
 data CsgoMatch = CsgoMatch
-	{ matchId :: MatchId -- ^ based on the replay url such as ../123_456.dem.bz2 where (123, 456) would be the id
-	, matchMap :: CsgoMap
+	{ matchMap :: CsgoMap
 	, startTime :: UTCTime
 	, waitTime :: NominalDiffTime
 	, matchDuration :: NominalDiffTime
@@ -39,7 +36,7 @@ data CsgoMatch = CsgoMatch
 	} deriving (Show)
 
 -- | Enum for csgo maps
-data CsgoMap = Dust2 | Mirage | Cache -- the other maps dont exist ;)
+data CsgoMap = Dust2 | Mirage | Cache | Cobblestone | Train | Overpass | Nuke | Inferno
 	deriving (Show, Enum, Bounded)
 
 instance ToField CsgoMap where
@@ -60,17 +57,30 @@ data PlayerStats = PlayerStats
 	, assists :: Int
 	, deaths :: Int
 	, mvps :: Maybe Int -- ^ mvp stars
-	, hsp :: Int -- ^ headshot percentage
+	, hsp :: Maybe Int -- ^ headshot percentage
 	, score :: Int
 	-- ban data from plugin but ill add that later?
 	} deriving (Show)
 
--- | Takes in raw gotv url text
-parseMatchId :: T.Text -> MatchId
-parseMatchId s = MatchId (textToInt64 first, textToInt64 second)
+parseMap :: T.Text -> CsgoMap
+parseMap s = fromJust . asum $
+	boolToMaybeMap
+	<$> ZipList [minBound .. maxBound]
+	<*> (T.isSuffixOf <$> maps <*> pure (T.stripEnd s))
 	where
-		(firstWithUnderscore, second) = T.breakOnEnd "_" . fst . T.breakOn "." . snd $ T.breakOnEnd "/" s
-		first = T.dropEnd 1 firstWithUnderscore
-		textToInt64 = read @Int64 . T.unpack
-
-
+		-- | must be in the same order as the CsgoMap enum
+		maps :: ZipList T.Text
+		maps = ZipList
+			[ "Dust II"
+			, "Mirage"
+			, "Cache"
+			, "Cobblestone"
+			, "Train"
+			, "Overpass"
+			, "Nuke"
+			, "Inferno"
+			]
+		boolToMaybeMap :: a -> Bool -> Maybe a
+		boolToMaybeMap map b
+			| b = Just map
+			| otherwise = Nothing

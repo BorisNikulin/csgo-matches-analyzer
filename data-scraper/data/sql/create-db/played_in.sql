@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS played_in (
-	mid1 INTEGER,
-	mid2 INTEGER,
 	pid INTEGER,
+	map TEXT,
+	start_time TEXT,
+	duration REAL,
 	team INTEGER,
 	ping INTEGER,
 	kills INTEGER,
@@ -11,7 +12,7 @@ CREATE TABLE IF NOT EXISTS played_in (
 	hsp INTEGER,
 	score INTEGER,
 
-	FOREIGN KEY (mid1, mid2) REFERENCES match(match_id1, match_id2),
+	FOREIGN KEY (map, start_time, duration) REFERENCES match(map, start_time, duration),
 	FOREIGN KEY (pid) REFERENCES player(steam_id),
-	PRIMARY KEY (mid1, mid2, pid)
+	PRIMARY KEY (pid, map, start_time, duration)
 );

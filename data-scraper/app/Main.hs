@@ -3,18 +3,32 @@ module Main
 	) where
 
 import Data.Foldable
+import System.Environment
 
+import Control.Concurrent.Async
 import Database.SQLite.Simple
 
-import Data.Csgo
 import Text.MatchParser
 import Sql.MatchInserter
 
-import Debug.Trace
-
 main :: IO ()
 main = do
-	Just matches <- test
-	withConnection "test.db" $ \con -> do
+	inputArgs <- getArgs
+	case inputArgs of
+		[fp, db] -> run fp db
+		_ -> printHelp
+
+run :: FilePath -> FilePath -> IO ()
+run fp db = do
+	matches <- scrapeFile fp
+	withConnection db $ \con -> do
 		createDb con
-		for_ matches $ insertMatch con . traceShowId
+		forConcurrently_ matches $ insertMatch con
+
+printHelp :: IO ()
+printHelp = do
+	progName <- getProgName
+	putStrLn
+		$  "Usage: "
+		++ progName
+		++ " <csgo data html> <sqlite db write path>"

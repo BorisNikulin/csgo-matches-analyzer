@@ -46,6 +46,7 @@ vars <- read_csv('secrets/vars.csv',
 	)
 id1 <- vars$MY_ID
 id2 <- vars$FRIEND_ID
+p.name <- glue("CASE WHEN p.steam_id = {id1} THEN 'Me' WHEN {id2} THEN 'Friend' END as name")
 
 # Sql with variable Interpolation utility func
 # idk why glue_sql doesnt work
@@ -58,12 +59,7 @@ con <- dbConnect(RSQLite::SQLite(), './data-scraper/csgo.db')
 library(ggplot2)
 
 tbl(con, si("
-	SELECT
-		CASE p.steam_id
-			WHEN {id2} THEN 'Friend'
-			WHEN {id1} THEN 'Me'
-		END AS 'name',
-	pl.start_time
+	SELECT {p.name}, pl.start_time
 	FROM player p
 	INNER JOIN played_in pl ON p.steam_id = pl.pid
 	WHERE
@@ -77,4 +73,135 @@ tbl(con, si("
 	geom_histogram() +
 	facet_grid(name~.)
 ```
+
+```{r a}
+tbl(con, si("
+	SELECT AVG(pl.kills) as AvgDayKills, pl.start_time, {p.name}
+	FROM player p
+	INNER JOIN played_in pl ON p.steam_id = pl.pid
+	WHERE
+		p.steam_id = {id1} OR
+		p.steam_id = {id2}
+	GROUP BY p.steam_id, pl.start_time
+	")) %>%
+	collect() %>%
+	mutate(start_time = ymd_hms(start_time)) %>%
+	ggplot(aes(start_time, AvgDayKills)) +
+	geom_line() +
+	geom_smooth() +
+	facet_grid(name~.)
+```
+
+```{r difference}
+tbl(con, si("
+	SELECT pl1.start_time, (pl1.kills - pl2.kills) AS 'Difference'
+	FROM player p1, player p2
+	INNER JOIN played_in pl1 ON p1.steam_id = pl1.pid
+	INNER JOIN played_in pl2 ON p2.steam_id = pl2.pid
+	WHERE
+	  p1.steam_id = {id1} AND
+	  p2.steam_id = {id2} AND
+	  pl1.start_time = pl2.start_time AND
+	  pl1.map = pl2.map AND
+	  pl1.duration = pl2.duration
+	GROUP BY pl1.start_time
+	")) %>%
+	collect() %>%
+	mutate(start_time = ymd_hms(start_time)) %>%
+	ggplot(aes(start_time, Difference)) +
+	geom_line() +
+	geom_smooth()
+```
+
+```{r win-ratio}
+tbl(con, si("
+	SELECT {p.name}, pl.kills, m.map, AVG(win.DidWin) as WinRate, m.start_time
+	FROM player p
+	INNER JOIN played_in pl ON p.steam_id = pl.pid
+	INNER JOIN match m ON
+		pl.map = m.map AND
+		pl.start_time = m.start_time AND
+		pl.duration = m.duration
+	INNER JOIN (
+		SELECT p.steam_id, m.map, m.start_time, m.duration,
+			CASE
+				WHEN pl.team = 0 AND m.score_team_a = 16 THEN 1
+				WHEN pl.team = 1 AND m.score_team_b = 16 THEN 1
+				WHEN m.score_team_a = 16 OR m.score_team_b = 16 then 0
+			END as DidWin
+		FROM player p
+		INNER JOIN played_in pl ON p.steam_id = pl.pid
+		INNER JOIN match m ON
+			pl.map = m.map AND
+			pl.start_time = m.start_time AND
+			pl.duration = m.duration
+	) win ON
+		p.steam_id = win.steam_id AND
+		m.map = win.map AND
+		m.start_time = win.start_time AND
+		m.duration = win.duration
+	WHERE
+		p.steam_id = {id1} OR
+		p.steam_id = {id2} AND
+		win.DidWin IS NOT NULL
+	GROUP BY p.steam_id, pl.kills, m.map
+	")) %>%
+	collect()  %>% #%T>%
+	#print(n = Inf) %>%
+	ggplot(aes(kills, WinRate)) +
+	geom_point(aes(alpha = (map == "Cobblestone"))) +
+	geom_smooth() +
+	geom_line() +
+	facet_grid(name ~ map) +
+	guides(alpha = FALSE)
+
+tbl(con, si("
+	SELECT {p.name}, pl.kills, AVG(win.DidWin) as WinRate, m.start_time
+	FROM player p
+	INNER JOIN played_in pl ON p.steam_id = pl.pid
+	INNER JOIN match m ON
+		pl.map = m.map AND
+		pl.start_time = m.start_time AND
+		pl.duration = m.duration
+	INNER JOIN (
+		SELECT p.steam_id, m.map, m.start_time, m.duration,
+			CASE
+				WHEN pl.team = 0 AND m.score_team_a = 16 THEN 1
+				WHEN pl.team = 1 AND m.score_team_b = 16 THEN 1
+				WHEN m.score_team_a = 16 OR m.score_team_b = 16 then 0
+			END as DidWin
+		FROM player p
+		INNER JOIN played_in pl ON p.steam_id = pl.pid
+		INNER JOIN match m ON
+			pl.map = m.map AND
+			pl.start_time = m.start_time AND
+			pl.duration = m.duration
+	) win ON
+		p.steam_id = win.steam_id AND
+		m.map = win.map AND
+		m.start_time = win.start_time AND
+		m.duration = win.duration
+	WHERE
+		p.steam_id = {id1} OR
+		p.steam_id = {id2} AND
+		win.DidWin IS NOT NULL
+	GROUP BY p.steam_id, pl.kills
+	")) %>%
+	collect()  %>% #%T>%
+	#print(n = Inf) %>%
+	ggplot(aes(kills, WinRate)) +
+	geom_point() +
+	geom_smooth() +
+	geom_line() +
+	facet_grid(name~.)
+
+#TODO:
+# de duplicate the code
+# probably by taking the per map one and combining the averages
+# when grouped just by name and kills
+#
+# figure out how nulls are getting in despite doing win.DidWin IS NOT NULL
+```
+
+
 

@@ -32,6 +32,7 @@ library(readr)
 library(DBI)
 library(lubridate)
 library(dplyr)
+library(tidyr)
 library(glue)
 
 vars <- read_csv('secrets/vars.csv',
@@ -39,7 +40,7 @@ vars <- read_csv('secrets/vars.csv',
     )
 id1 <- vars$MY_ID
 id2 <- vars$FRIEND_ID
-p.name <- glue("CASE WHEN p.steam_id = {id1} THEN 'Me' WHEN {id2} THEN 'Friend' END as name")
+p.name <- glue("CASE WHEN p.steam_id = {id1} THEN 'Me' WHEN {id2} THEN 'Friend' END AS name")
 
 # Sql with variable Interpolation utility func
 # idk why glue_sql doesnt work
@@ -72,7 +73,7 @@ tbl(con, si("
 
 ``` r
 tbl(con, si("
-    SELECT AVG(pl.kills) as AvgDayKills, pl.start_time, {p.name}
+    SELECT AVG(pl.kills) AS AvgDayKills, pl.start_time, {p.name}
     FROM player p
     INNER JOIN played_in pl ON p.steam_id = pl.pid
     WHERE
@@ -88,7 +89,7 @@ tbl(con, si("
     facet_grid(name~.)
 ```
 
-![](README_files/figure-gfm/a-1.png)<!-- -->
+![](README_files/figure-gfm/avg-kills-1.png)<!-- -->
 
 ``` r
 tbl(con, si("
@@ -111,11 +112,11 @@ tbl(con, si("
     geom_smooth()
 ```
 
-![](README_files/figure-gfm/difference-1.png)<!-- -->
+![](README_files/figure-gfm/kill-difference-1.png)<!-- -->
 
 ``` r
-tbl(con, si("
-    SELECT {p.name}, pl.kills, m.map, AVG(win.DidWin) as WinRate, m.start_time
+data_win_ratio_per_kill_map <- tbl(con, si("
+    SELECT {p.name}, pl.kills, m.map, AVG(win.DidWin) AS WinRate, COUNT(win.DidWin) AS Weight
     FROM player p
     INNER JOIN played_in pl ON p.steam_id = pl.pid
     INNER JOIN match m ON
@@ -142,14 +143,16 @@ tbl(con, si("
         m.duration = win.duration
     WHERE
         p.steam_id = {id1} OR
-        p.steam_id = {id2} AND
-        win.DidWin IS NOT NULL
+        p.steam_id = {id2}
     GROUP BY p.steam_id, pl.kills, m.map
     ")) %>%
-    collect()  %>% #%T>%
-    #print(n = Inf) %>%
+    collect() %>%
+    drop_na()
+
+data_win_ratio_per_kill_map %>%
+    add_count(name, map) %>%
+    filter(n != 1) %>%
     ggplot(aes(kills, WinRate)) +
-    geom_point(aes(alpha = (map == "Cobblestone"))) +
     geom_smooth() +
     geom_line() +
     facet_grid(name ~ map) +
@@ -159,41 +162,13 @@ tbl(con, si("
 ![](README_files/figure-gfm/win-ratio-1.png)<!-- -->
 
 ``` r
-tbl(con, si("
-    SELECT {p.name}, pl.kills, AVG(win.DidWin) as WinRate, m.start_time
-    FROM player p
-    INNER JOIN played_in pl ON p.steam_id = pl.pid
-    INNER JOIN match m ON
-        pl.map = m.map AND
-        pl.start_time = m.start_time AND
-        pl.duration = m.duration
-    INNER JOIN (
-        SELECT p.steam_id, m.map, m.start_time, m.duration,
-            CASE
-                WHEN pl.team = 0 AND m.score_team_a = 16 THEN 1
-                WHEN pl.team = 1 AND m.score_team_b = 16 THEN 1
-                WHEN m.score_team_a = 16 OR m.score_team_b = 16 then 0
-            END as DidWin
-        FROM player p
-        INNER JOIN played_in pl ON p.steam_id = pl.pid
-        INNER JOIN match m ON
-            pl.map = m.map AND
-            pl.start_time = m.start_time AND
-            pl.duration = m.duration
-    ) win ON
-        p.steam_id = win.steam_id AND
-        m.map = win.map AND
-        m.start_time = win.start_time AND
-        m.duration = win.duration
-    WHERE
-        p.steam_id = {id1} OR
-        p.steam_id = {id2} AND
-        win.DidWin IS NOT NULL
-    GROUP BY p.steam_id, pl.kills
-    ")) %>%
-    collect()  %>% #%T>%
-    #print(n = Inf) %>%
-    ggplot(aes(kills, WinRate)) +
+data_win_ratio_per_kill <- data_win_ratio_per_kill_map %>%
+    group_by(name, kills) %>%
+    summarise(
+        WinRate = weighted.mean(WinRate, Weight),
+        Weight = sum(Weight))
+
+ggplot(data_win_ratio_per_kill, aes(kills, WinRate)) +
     geom_point() +
     geom_smooth() +
     geom_line() +
@@ -201,12 +176,3 @@ tbl(con, si("
 ```
 
 ![](README_files/figure-gfm/win-ratio-2.png)<!-- -->
-
-``` r
-#TODO:
-# de duplicate the code
-# probably by taking the per map one and combining the averages
-# when grouped just by name and kills
-#
-# figure out how nulls are getting in despite doing win.DidWin IS NOT NULL
-```

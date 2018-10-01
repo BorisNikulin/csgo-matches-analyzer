@@ -69,7 +69,7 @@ tbl(con, si("
     facet_grid(name~.)
 ```
 
-![](README_files/figure-gfm/plot-1.png)<!-- -->
+![](README_files/figure-gfm/plot-1.svg)<!-- -->
 
 ``` r
 tbl(con, si("
@@ -89,7 +89,7 @@ tbl(con, si("
     facet_grid(name~.)
 ```
 
-![](README_files/figure-gfm/avg-kills-1.png)<!-- -->
+![](README_files/figure-gfm/avg-kills-1.svg)<!-- -->
 
 ``` r
 tbl(con, si("
@@ -112,7 +112,7 @@ tbl(con, si("
     geom_smooth()
 ```
 
-![](README_files/figure-gfm/kill-difference-1.png)<!-- -->
+![](README_files/figure-gfm/kill-difference-1.svg)<!-- -->
 
 ``` r
 data_win_ratio_per_kill_map <- tbl(con, si("
@@ -159,7 +159,7 @@ data_win_ratio_per_kill_map %>%
     guides(alpha = FALSE)
 ```
 
-![](README_files/figure-gfm/win-ratio-1.png)<!-- -->
+![](README_files/figure-gfm/win-ratio-1.svg)<!-- -->
 
 ``` r
 data_win_ratio_per_kill <- data_win_ratio_per_kill_map %>%
@@ -175,4 +175,125 @@ ggplot(data_win_ratio_per_kill, aes(kills, WinRate)) +
     facet_grid(name~.)
 ```
 
-![](README_files/figure-gfm/win-ratio-2.png)<!-- -->
+![](README_files/figure-gfm/win-ratio-2.svg)<!-- -->
+
+Hypothesis: I do *better* when I play solo than when I play with my
+friend. We will use a Welch’s t test to compare performance of the two
+distributions. The variable we will consider is the score since it’s an
+easy and comprehensive enough total score.
+
+``` r
+performance_solo <- tbl(con, si("
+    SELECT pl1.kills, pl1.assists, pl1.deaths,
+        pl1.mvps, pl1.hsp, pl1.score
+    FROM player p1, player p2
+    INNER JOIN played_in pl1 ON p1.steam_id = pl1.pid
+    INNER JOIN played_in pl2 ON p2.steam_id = pl2.pid
+    WHERE
+      p1.steam_id = {id1} AND
+      p2.steam_id <> {id2} AND
+      pl1.start_time = pl2.start_time AND
+      pl1.map = pl2.map AND
+      pl1.duration = pl2.duration
+    GROUP BY pl1.start_time
+    ")) %>% collect()
+
+performance_with_friend <- tbl(con, si("
+    SELECT pl1.kills, pl1.assists, pl1.deaths,
+        pl1.mvps, pl1.hsp, pl1.score
+    FROM player p1, player p2
+    INNER JOIN played_in pl1 ON p1.steam_id = pl1.pid
+    INNER JOIN played_in pl2 ON p2.steam_id = pl2.pid
+    WHERE
+      p1.steam_id = {id1} AND
+      p2.steam_id = {id2} AND
+      pl1.start_time = pl2.start_time AND
+      pl1.map = pl2.map AND
+      pl1.duration = pl2.duration
+    GROUP BY pl1.start_time
+    ")) %>% collect()
+
+for(i in 1:ncol(performance_solo))
+{
+    print(names(performance_solo)[i])
+    print(t.test(performance_solo[[i]], performance_with_friend[[i]]))
+}
+```
+
+    ## [1] "kills"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 2.1919, df = 1182, p-value = 0.02858
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  0.06155057 1.11186481
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  14.69440  14.10769 
+    ## 
+    ## [1] "assists"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 0.64326, df = 1162.9, p-value = 0.5202
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -0.1499608  0.2962582
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  4.155200  4.082051 
+    ## 
+    ## [1] "deaths"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 0.51272, df = 1109, p-value = 0.6082
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -0.3547395  0.6057207
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  17.92720  17.80171 
+    ## 
+    ## [1] "mvps"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 0.9433, df = 929.84, p-value = 0.3458
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -0.07337336  0.20918907
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  2.285857  2.217949 
+    ## 
+    ## [1] "hsp"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 1.5548, df = 1079.3, p-value = 0.1203
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -0.3057205  2.6395169
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  36.00081  34.83392 
+    ## 
+    ## [1] "score"
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  performance_solo[[i]] and performance_with_friend[[i]]
+    ## t = 2.0185, df = 1172.4, p-value = 0.04377
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  0.03626767 2.55664857
+    ## sample estimates:
+    ## mean of x mean of y 
+    ##  37.77680  36.48034

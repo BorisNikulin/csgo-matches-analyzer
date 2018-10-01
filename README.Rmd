@@ -3,7 +3,7 @@ output: github_document
 ---
 
 ```{r global_options, include = F}
-knitr::opts_chunk$set(warning = F, message = F, dev = 'png')
+knitr::opts_chunk$set(warning = F, message = F, dev = 'svg')
 
 ```
 # CSGO Matches Analysis
@@ -169,4 +169,47 @@ ggplot(data_win_ratio_per_kill, aes(kills, WinRate)) +
 	geom_smooth() +
 	geom_line() +
 	facet_grid(name~.)
+```
+
+Hypothesis: I do *better* when I play solo than when I play with my friend.
+We will use a Welch's t test to compare performance of the two distributions.
+The variable we will consider is the score since it's an easy and comprehensive enough
+total score.
+
+```{r ttest}
+performance_solo <- tbl(con, si("
+	SELECT pl1.kills, pl1.assists, pl1.deaths,
+		pl1.mvps, pl1.hsp, pl1.score
+    FROM player p1, player p2
+    INNER JOIN played_in pl1 ON p1.steam_id = pl1.pid
+    INNER JOIN played_in pl2 ON p2.steam_id = pl2.pid
+    WHERE
+      p1.steam_id = {id1} AND
+      p2.steam_id <> {id2} AND
+      pl1.start_time = pl2.start_time AND
+      pl1.map = pl2.map AND
+      pl1.duration = pl2.duration
+    GROUP BY pl1.start_time
+	")) %>% collect()
+
+performance_with_friend <- tbl(con, si("
+	SELECT pl1.kills, pl1.assists, pl1.deaths,
+		pl1.mvps, pl1.hsp, pl1.score
+    FROM player p1, player p2
+    INNER JOIN played_in pl1 ON p1.steam_id = pl1.pid
+    INNER JOIN played_in pl2 ON p2.steam_id = pl2.pid
+    WHERE
+      p1.steam_id = {id1} AND
+      p2.steam_id = {id2} AND
+      pl1.start_time = pl2.start_time AND
+      pl1.map = pl2.map AND
+      pl1.duration = pl2.duration
+    GROUP BY pl1.start_time
+	")) %>% collect()
+
+for(i in 1:ncol(performance_solo))
+{
+	print(names(performance_solo)[i])
+	print(t.test(performance_solo[[i]], performance_with_friend[[i]]))
+}
 ```

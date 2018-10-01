@@ -11,7 +11,7 @@ knitr::opts_chunk$set(warning = F, message = F, dev = 'svg')
 To analyze your matches:
 
 * Go to your csgo competitive match history and save the html webpage\*
-* Run the scraper on the html (complete although strangely slow)
+* Run the scraper on the html
 * Run the R analysis on the resulting sqlite file (wip)
 
 \* This

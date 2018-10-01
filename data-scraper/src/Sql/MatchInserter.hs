@@ -11,6 +11,7 @@ import Data.Time
 import Database.SQLite.Simple
 import System.Directory
 
+
 import Data.Csgo
 
 createDb :: Connection -> IO ()
@@ -22,6 +23,7 @@ createDb con = do
 insertMatch :: Connection -> CsgoMatch -> IO ()
 insertMatch con CsgoMatch{..} = do
 	insertMatchQ <- loadQuery "data/sql/insert-match.sql"
+	--let insertMatchQ = loadQueryInsert
 
 	execute con insertMatchQ
 		( matchMap

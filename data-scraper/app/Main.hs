@@ -1,3 +1,5 @@
+{-# language OverloadedStrings #-}
+
 module Main
 	( main
 	) where
@@ -5,7 +7,6 @@ module Main
 import Data.Foldable
 import System.Environment
 
-import Control.Concurrent.Async
 import Database.SQLite.Simple
 
 import Text.MatchParser
@@ -23,7 +24,9 @@ run fp db = do
 	matches <- scrapeFile fp
 	withConnection db $ \con -> do
 		createDb con
-		forConcurrently_ matches $ insertMatch con
+		execute_ con "BEGIN"
+		for_ matches $ insertMatch con
+		execute_ con "COMMIT"
 
 printHelp :: IO ()
 printHelp = do
